@@ -1,0 +1,37 @@
+name: simbatech-api
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-simbatech}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-simbatech}
+      POSTGRES_DB: ${POSTGRES_DB:-simbatech}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Django API on http://localhost:8000 (admin at /admin/). Migrates and seeds itself on start.
+  api:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-simbatech}:${POSTGRES_PASSWORD:-simbatech}@db:5432/${POSTGRES_DB:-simbatech}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db-data:
