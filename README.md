@@ -95,4 +95,4 @@ All responses are JSON. Errors are `{"error": "<message>", "field": "<input path
 
 ## Production notes
 
-Set `DEBUG=0`, a real `SECRET_KEY`, `ALLOWED_HOSTS` and `FRONTEND_ORIGIN` (your site's URL). With `DEBUG=0` the container serves the API with gunicorn and cookies are marked `Secure`, so it must sit behind HTTPS.
+Set `DEBUG=0`, a real `SECRET_KEY`, `ALLOWED_HOSTS` and `FRONTEND_ORIGIN` (your site's URL; a comma-separated list is allowed, the first one receives sign-in and payment redirects). Signed-in requests from any other origin are rejected by the CSRF check. With `DEBUG=0` the container serves the API with gunicorn and cookies are marked `Secure`, so it must sit behind HTTPS.

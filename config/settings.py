@@ -18,10 +18,12 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "dev-only-insecure-key-change-me")
 DEBUG = os.environ.get("DEBUG", "1") == "1"
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1,api").split(",") if h.strip()]
 
-# The Next.js site that talks to this API (browser requests are proxied through it).
-FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
-CSRF_TRUSTED_ORIGINS = [FRONTEND_ORIGIN]
-CORS_ALLOWED_ORIGINS = [FRONTEND_ORIGIN]
+# The Next.js site(s) that talk to this API (browser requests are proxied through them). A comma-separated
+# list is accepted; the first entry is where sign-in and payment redirects send the customer.
+FRONTEND_ORIGINS = [o.strip().rstrip("/") for o in os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000").split(",") if o.strip()]
+FRONTEND_ORIGIN = FRONTEND_ORIGINS[0]
+CSRF_TRUSTED_ORIGINS = FRONTEND_ORIGINS
+CORS_ALLOWED_ORIGINS = FRONTEND_ORIGINS
 CORS_ALLOW_CREDENTIALS = True
 
 INSTALLED_APPS = [
