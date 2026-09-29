@@ -123,6 +123,38 @@ STORAGES = {
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# ── Integrations (all optional; without keys the API runs in a development mode) ──
+
+# Payments: Chapa (https://chapa.co) hosts the payment page and supports Telebirr, CBE Birr and cards.
+CHAPA_SECRET_KEY = os.environ.get("CHAPA_SECRET_KEY", "")
+CHAPA_WEBHOOK_SECRET = os.environ.get("CHAPA_WEBHOOK_SECRET", "")
+# Where the API itself is reachable from the internet (Chapa redirects the customer back here).
+API_PUBLIC_URL = os.environ.get("API_PUBLIC_URL", "http://localhost:8000")
+
+# Google sign-in (OAuth client of type "Web application"; redirect URI = API_PUBLIC_URL + /api/auth/google/callback)
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+
+# SMS for one-time codes: "console" (printed to the log; the API also returns the code while DEBUG)
+# or "africastalking" (AT_USERNAME + AT_API_KEY, optional AT_SENDER_ID).
+SMS_BACKEND = os.environ.get("SMS_BACKEND", "console")
+AT_USERNAME = os.environ.get("AT_USERNAME", "")
+AT_API_KEY = os.environ.get("AT_API_KEY", "")
+AT_SENDER_ID = os.environ.get("AT_SENDER_ID", "")
+OTP_TTL_MINUTES = 10
+
+# Email for password-reset links: SMTP when EMAIL_HOST is set, otherwise printed to the log.
+if os.environ.get("EMAIL_HOST"):
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_HOST = os.environ["EMAIL_HOST"]
+    EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+    EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+    EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+    EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "1") == "1"
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "Simbatech <no-reply@simbatech.et>")
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

@@ -24,10 +24,6 @@ from .models import Fulfilment, Order, OrderEvent, OrderItem, OrderStatus, Payme
 METHODS = {"telebirr": PaymentMethod.TELEBIRR, "card": PaymentMethod.CARD, "cod": PaymentMethod.COD}
 
 
-def settle_payment(method: str) -> str:
-    return PaymentStatus.PENDING if method == PaymentMethod.COD else PaymentStatus.PAID
-
-
 def next_order_number() -> str:
     while True:
         number = f"ST-{secrets.randbelow(900000) + 100000}"
@@ -99,7 +95,7 @@ def place_order(cart_id, user, data: dict) -> Order:
             delivery_date=None if pickup else delivery_date,
             delivery_window="" if pickup else (data.get("deliveryWindow") or ""),
             payment_method=method,
-            payment_status=settle_payment(method),
+            payment_status=PaymentStatus.PENDING,  # settled by orders.payments right after creation
             payment_phone=data["payment"].get("phone") or "",
             purchases_total=totals["purchases"],
             rentals_total=totals["rentals"],
@@ -119,6 +115,7 @@ def place_order(cart_id, user, data: dict) -> Order:
                 name=product.name,
                 kind=product.kind,
                 bg=product.bg,
+                variant_label=(line.get("variant") or {}).get("label", ""),
                 mode=Mode.RENT if is_rent else Mode.BUY,
                 qty=line["qty"],
                 unit_price=line["unitPrice"],
@@ -172,7 +169,15 @@ def order_dto(o: Order) -> dict:
         "address": o.address,
         "deliveryDate": _iso_day(o.delivery_date),
         "deliveryWindow": o.delivery_window or None,
-        "payment": {"method": o.payment_method.lower(), "status": o.payment_status.lower(), "phone": o.payment_phone or None},
+        "payment": {
+            "method": o.payment_method.lower(),
+            "status": o.payment_status.lower(),
+            "phone": o.payment_phone or None,
+            "provider": o.payment_provider or None,
+            "paidAt": o.paid_at.isoformat() if o.paid_at else None,
+            # an unpaid Telebirr / card order can be paid from the account or confirmation page
+            "payable": o.payment_method != PaymentMethod.COD and o.payment_status in (PaymentStatus.PENDING, PaymentStatus.FAILED),
+        },
         "totals": {
             "purchases": o.purchases_total,
             "rentals": o.rentals_total,
@@ -191,6 +196,7 @@ def order_dto(o: Order) -> dict:
                 "name": i.name,
                 "kind": i.kind,
                 "bg": i.bg,
+                "variant": i.variant_label or None,
                 "mode": "rent" if i.mode == Mode.RENT else "buy",
                 "qty": i.qty,
                 "unitPrice": i.unit_price,
@@ -218,6 +224,12 @@ def get_order(order_id, user) -> dict | None:
     if not order or (order.user_id and order.user_id != (user.pk if user else None)):
         return None
     return order_dto(order)
+
+
+def track_order(number: str, phone: str) -> dict | None:
+    """Public order lookup for the Track order page: order number + the phone used on the order."""
+    order = order_queryset().filter(number__iexact=number.strip(), contact_phone=phone).first()
+    return order_dto(order) if order else None
 
 
 def list_orders(user) -> list[dict]:

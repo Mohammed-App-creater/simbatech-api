@@ -25,6 +25,7 @@ class Cart(models.Model):
 class CartItem(models.Model):
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name="items")
     product = models.ForeignKey("catalog.Product", on_delete=models.CASCADE)
+    variant = models.ForeignKey("catalog.Variant", on_delete=models.SET_NULL, null=True, blank=True)
     mode = models.CharField(max_length=4, choices=Mode.choices)
     qty = models.PositiveSmallIntegerField(default=1)
     rent_start = models.DateField(null=True, blank=True)

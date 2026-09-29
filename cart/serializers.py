@@ -5,9 +5,16 @@ class AddToCartSerializer(serializers.Serializer):
     productId = serializers.CharField()
     mode = serializers.ChoiceField(choices=["buy", "rent"])
     qty = serializers.IntegerField(required=False, min_value=1, max_value=20)
+    variant = serializers.CharField(required=False, allow_blank=True)
     rentStart = serializers.DateField(required=False, error_messages={"invalid": "Use a yyyy-mm-dd date"})
     rentDays = serializers.IntegerField(required=False, min_value=1, max_value=90)
     addOns = serializers.ListField(child=serializers.CharField(), required=False, max_length=10)
+
+
+class AddBundleSerializer(serializers.Serializer):
+    bundleId = serializers.CharField()
+    rentStart = serializers.DateField(required=False, error_messages={"invalid": "Use a yyyy-mm-dd date"})
+    rentDays = serializers.IntegerField(required=False, min_value=1, max_value=90)
 
 
 class UpdateCartItemSerializer(serializers.Serializer):

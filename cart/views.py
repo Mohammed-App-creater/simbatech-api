@@ -5,8 +5,8 @@ from catalog.models import PromoCode
 from core.errors import ApiError
 
 from .models import CartItem, Mode
-from .serializers import AddToCartSerializer, PromoSerializer, UpdateCartItemSerializer
-from .services import add_to_cart, cart_dto, cart_dto_by_id, find_cart, get_or_create_cart
+from .serializers import AddBundleSerializer, AddToCartSerializer, PromoSerializer, UpdateCartItemSerializer
+from .services import add_bundle, add_to_cart, cart_dto, cart_dto_by_id, find_cart, get_or_create_cart
 
 
 class CartView(APIView):
@@ -20,6 +20,16 @@ class CartView(APIView):
         cart = get_or_create_cart(request)
         add_to_cart(cart, s.validated_data)
         return Response(cart_dto_by_id(cart.id))
+
+
+class BundleView(APIView):
+    def post(self, request):
+        """Book every product in a rental bundle. Returns the updated cart."""
+        s = AddBundleSerializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        cart = get_or_create_cart(request)
+        added = add_bundle(cart, s.validated_data)
+        return Response({**cart_dto_by_id(cart.id), "added": added})
 
 
 class CartItemView(APIView):

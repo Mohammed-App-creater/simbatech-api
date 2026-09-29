@@ -1,16 +1,18 @@
 from rest_framework import serializers, status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.errors import ApiError
+from orders.serializers import ContactSerializer, ReviewSerializer
 
-from .dto import brand_list, category_list, product_dto, product_queryset
-from .models import NewsletterSubscriber, Product
+from .dto import brand_list, bundle_list, category_list, page_dto, product_dto, product_queryset, reviews_payload, store_dto
+from .models import ContactMessage, NewsletterSubscriber, Page, Product, Review
 
 
 class ProductListView(APIView):
     """
-    GET /api/products?q=&mode=buy|rent&dept=&brand=&min=&max=&sort=featured|price-asc|price-desc|rating
+    GET /api/products?q=&mode=buy|rent&dept=&brand=&min=&max=&deals=1&sort=featured|price-asc|price-desc|rating
     The catalog is small, so filtering happens in memory on the full list.
     """
 
@@ -34,6 +36,8 @@ class ProductListView(APIView):
             items = [p for p in items if p.get("rent")]
         elif mode == "buy":
             items = [p for p in items if not p["rentOnly"]]
+        if params.get("deals") in ("1", "true"):
+            items = [p for p in items if p.get("was")]
         if depts:
             items = [p for p in items if p["dept"] in depts or p["cat"] in depts]
         if brands:
@@ -56,6 +60,37 @@ class ProductDetailView(APIView):
         return Response(product_dto(product))
 
 
+class ProductReviewsView(APIView):
+    def _product(self, slug):
+        product = Product.objects.filter(slug=slug).first()
+        if not product:
+            raise ApiError("Product not found", 404)
+        return product
+
+    def get(self, request, slug):
+        user = request.user if request.user.is_authenticated else None
+        return Response(reviews_payload(self._product(slug), user))
+
+    def post(self, request, slug):
+        """Write (or update) your review. Signed-in customers only, one review per product."""
+        if not request.user.is_authenticated:
+            raise ApiError("Please sign in to write a review", 401)
+        product = self._product(slug)
+        s = ReviewSerializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        Review.objects.update_or_create(product=product, user=request.user, defaults=s.validated_data)
+        product.recompute_rating()
+        return Response(reviews_payload(product, request.user), status=status.HTTP_201_CREATED)
+
+    def delete(self, request, slug):
+        if not request.user.is_authenticated:
+            raise ApiError("Please sign in first", 401)
+        product = self._product(slug)
+        Review.objects.filter(product=product, user=request.user).delete()
+        product.recompute_rating()
+        return Response(reviews_payload(product, request.user))
+
+
 class CategoryListView(APIView):
     def get(self, request):
         return Response({"items": category_list()})
@@ -64,6 +99,37 @@ class CategoryListView(APIView):
 class BrandListView(APIView):
     def get(self, request):
         return Response({"items": brand_list()})
+
+
+class BundleListView(APIView):
+    def get(self, request):
+        return Response({"items": bundle_list()})
+
+
+class StoreSettingsView(APIView):
+    def get(self, request):
+        return Response(store_dto())
+
+
+class PageListView(APIView):
+    def get(self, request):
+        return Response({"items": [{"slug": p.slug, "title": p.title, "summary": p.summary} for p in Page.objects.all()]})
+
+
+class PageDetailView(APIView):
+    def get(self, request, slug):
+        page = Page.objects.filter(slug=slug).first()
+        if not page:
+            raise ApiError("Page not found", 404)
+        return Response(page_dto(page))
+
+
+class ContactView(APIView):
+    def post(self, request):
+        s = ContactSerializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        ContactMessage.objects.create(**s.validated_data)
+        return Response({"ok": True}, status=status.HTTP_201_CREATED)
 
 
 class NewsletterSerializer(serializers.Serializer):

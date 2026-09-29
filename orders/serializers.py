@@ -55,3 +55,20 @@ class CheckoutSerializer(serializers.Serializer):
 
 class ExtendSerializer(serializers.Serializer):
     days = serializers.IntegerField(required=False, default=1, min_value=1, max_value=30)
+
+
+class StartPaymentSerializer(serializers.Serializer):
+    orderId = serializers.CharField()
+
+
+class ReviewSerializer(serializers.Serializer):
+    rating = serializers.IntegerField(min_value=1, max_value=5, error_messages={"required": "Choose a star rating", "min_value": "Choose a star rating", "max_value": "Choose a star rating"})
+    title = serializers.CharField(required=False, allow_blank=True, max_length=80)
+    body = serializers.CharField(min_length=10, max_length=2000, error_messages={"min_length": "Tell us a little more (at least 10 characters)", "required": "Write your review", "blank": "Write your review"})
+
+
+class ContactSerializer(serializers.Serializer):
+    topic = serializers.ChoiceField(choices=["support", "sell", "careers", "other"], default="other")
+    name = serializers.CharField(min_length=2, max_length=80, error_messages={"min_length": "Enter your name", "required": "Enter your name", "blank": "Enter your name"})
+    contact = serializers.CharField(min_length=3, max_length=120, error_messages={"min_length": "Enter your phone or email", "required": "Enter your phone or email", "blank": "Enter your phone or email"})
+    message = serializers.CharField(min_length=10, max_length=4000, error_messages={"min_length": "Tell us a little more (at least 10 characters)", "required": "Write your message", "blank": "Write your message"})

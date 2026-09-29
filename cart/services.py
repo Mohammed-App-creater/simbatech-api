@@ -8,7 +8,7 @@ from datetime import timedelta
 from django.db.models import Prefetch
 
 from catalog.dto import product_dto
-from catalog.models import Product, PromoCode
+from catalog.models import Bundle, Product, PromoCode, Variant
 from core.errors import ApiError
 from core.pricing import compute_totals, rental_line_price, shop_today
 
@@ -19,8 +19,8 @@ CART_SESSION_KEY = "cart_id"
 
 def cart_queryset():
     items = (
-        CartItem.objects.select_related("product__category", "product__brand")
-        .prefetch_related("product__plans", "product__add_ons")
+        CartItem.objects.select_related("product__category", "product__brand", "variant")
+        .prefetch_related("product__plans", "product__add_ons", "product__variants")
         .order_by("created_at", "id")
     )
     return Cart.objects.prefetch_related(Prefetch("items", queryset=items))
@@ -79,11 +79,12 @@ def price_line(item: CartItem) -> dict:
     if is_rent:
         unit = rental_line_price(product.rent_rate or 0, product.plans.all(), product.add_ons.all(), item.add_on_keys, days)
     else:
-        unit = product.buy_price
+        unit = product.buy_price + (item.variant.extra_price if item.variant else 0)
     qty = 1 if is_rent else item.qty
     return {
         "id": item.pk,
         "product": dto,
+        "variant": {"key": item.variant.key, "label": item.variant.label, "extra": item.variant.extra_price} if item.variant else None,
         "mode": "rent" if is_rent else "buy",
         "qty": qty,
         "rentStart": item.rent_start.isoformat() if item.rent_start else None,
@@ -121,8 +122,15 @@ def cart_dto_by_id(cart_id) -> dict:
 # ── Mutations ──
 
 
+def _rent_start(data):
+    start = data.get("rentStart") or (shop_today() + timedelta(days=1))
+    if start < shop_today():
+        raise ApiError("Choose a start date from today onwards", 422, "rentStart")
+    return start
+
+
 def add_to_cart(cart: Cart, data: dict):
-    product = Product.objects.prefetch_related("add_ons").filter(slug=data["productId"]).first()
+    product = Product.objects.prefetch_related("add_ons", "variants").filter(slug=data["productId"]).first()
     if not product:
         raise ApiError("Product not found", 404)
 
@@ -130,9 +138,7 @@ def add_to_cart(cart: Cart, data: dict):
         if not product.rent_rate:
             raise ApiError("This item can't be rented")
         days = min(90, max(1, data.get("rentDays") or 1))
-        start = data.get("rentStart") or (shop_today() + timedelta(days=1))
-        if start < shop_today():
-            raise ApiError("Choose a start date from today onwards", 422, "rentStart")
+        start = _rent_start(data)
         valid = {a.key for a in product.add_ons.all()}
         add_on_keys = [k for k in (data.get("addOns") or []) if k in valid]
         # one rental line per product: booking again replaces the dates
@@ -148,11 +154,29 @@ def add_to_cart(cart: Cart, data: dict):
         raise ApiError("This item is for rent only")
     if product.stock <= 0 and not product.ships_in_days:
         raise ApiError("Sorry, this item is out of stock")
+    variant = None
+    if data.get("variant"):
+        variant = Variant.objects.filter(product=product, key=data["variant"]).first()
+        if not variant:
+            raise ApiError("That option isn't available for this product", 422, "variant")
     qty = min(20, max(1, data.get("qty") or 1))
-    existing = CartItem.objects.filter(cart=cart, product=product, mode=Mode.BUY).first()
+    existing = CartItem.objects.filter(cart=cart, product=product, mode=Mode.BUY, variant=variant).first()
     if existing:
         existing.qty = min(20, existing.qty + qty)
         existing.saved_for_later = False
         existing.save()
     else:
-        CartItem.objects.create(cart=cart, product=product, mode=Mode.BUY, qty=qty)
+        CartItem.objects.create(cart=cart, product=product, mode=Mode.BUY, qty=qty, variant=variant)
+
+
+def add_bundle(cart: Cart, data: dict) -> int:
+    """Books every rentable product in a bundle for the same dates. Returns how many were added."""
+    bundle = Bundle.objects.prefetch_related("items__product").filter(slug=data["bundleId"]).first()
+    if not bundle:
+        raise ApiError("Bundle not found", 404)
+    products = [i.product for i in bundle.items.all() if i.product and i.product.rent_rate]
+    if not products:
+        raise ApiError("This bundle has nothing that can be booked online yet. Please contact us.")
+    for product in products:
+        add_to_cart(cart, {"productId": product.slug, "mode": "rent", "rentStart": data.get("rentStart"), "rentDays": data.get("rentDays") or 1})
+    return len(products)
