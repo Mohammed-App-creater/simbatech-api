@@ -41,6 +41,7 @@ from .serializers import (
 LIST_LIMIT = 200  # rows a list endpoint returns at most; the pages say so when there are more
 OPEN_STATUSES = [OrderStatus.PLACED, OrderStatus.PACKED, OrderStatus.OUT_FOR_DELIVERY]
 LOW_STOCK = 3
+CHART_DAYS = 14  # days in the overview's sales chart
 
 
 class IsStaff(BasePermission):
@@ -580,8 +581,40 @@ class OverviewView(StaffView):
         active = OrderItem.objects.filter(rental_status=RentalStatus.ACTIVE)
         by_status = {row["status"]: row["n"] for row in Order.objects.order_by().values("status").annotate(n=Count("id"))}
         low = Product.objects.filter(stock__lte=LOW_STOCK).order_by("stock", "name")
+
+        # sales per shop day for the chart (cancelled orders left out), oldest first
+        first_day = today - timedelta(days=CHART_DAYS - 1)
+        daily = {first_day + timedelta(days=i): {"sales": 0, "orders": 0} for i in range(CHART_DAYS)}
+        for created, total in live.filter(created_at__gte=datetime.combine(first_day, time.min, tzinfo=SHOP_TZ)).values_list("created_at", "total"):
+            day = daily.get(created.astimezone(SHOP_TZ).date())
+            if day:
+                day["sales"] += total
+                day["orders"] += 1
+
+        # best sellers over the last 30 days, by units (bought or rented)
+        month = live.filter(created_at__gte=day_start - timedelta(days=29))
+        top = (
+            OrderItem.objects.filter(order__in=month)
+            .values("product__slug", "product__name", "product__kind", "product__bg")
+            .annotate(units=Sum("qty"), revenue=Sum("line_total"), rented=Count("id", filter=Q(rental_status__isnull=False)))
+            .order_by("-units", "-revenue")[:5]
+        )
+        month_totals = month.aggregate(sales=Sum("total"), purchases=Sum("purchases_total"), rentals=Sum("rentals_total"), n=Count("id"))
         return Response(
             {
+                "daily": [{"date": d.isoformat(), **v} for d, v in daily.items()],
+                "month": {
+                    "sales": month_totals["sales"] or 0,
+                    "orders": month_totals["n"],
+                    "purchases": month_totals["purchases"] or 0,
+                    "rentals": month_totals["rentals"] or 0,
+                },
+                "pipeline": {s: by_status.get(s, 0) for s in OrderStatus.values},
+                "topProducts": [
+                    {"slug": t["product__slug"], "name": t["product__name"], "kind": t["product__kind"], "bg": t["product__bg"], "units": t["units"], "revenue": t["revenue"], "rented": t["rented"]}
+                    for t in top
+                ],
+                "rentalsScheduled": OrderItem.objects.filter(rental_status=RentalStatus.SCHEDULED).count(),
                 "user": user_dto(request.user),
                 "counts": counts(),
                 "ordersToday": todays.count(),
