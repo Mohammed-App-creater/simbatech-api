@@ -7,7 +7,7 @@ development only.
 
 import os
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 from dotenv import load_dotenv
 
@@ -75,14 +75,18 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 def _database_from_url(url: str) -> dict:
     u = urlparse(url)
+    # Query options such as ?sslmode=require&channel_binding=require (hosted Postgres like Neon) go to libpq.
+    options = {k: v[-1] for k, v in parse_qs(u.query).items() if k != "schema"}
     return {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": u.path.lstrip("/"),
-        "USER": u.username,
-        "PASSWORD": u.password,
+        "NAME": unquote(u.path.lstrip("/")),
+        "USER": unquote(u.username or ""),
+        "PASSWORD": unquote(u.password or ""),
         "HOST": u.hostname,
         "PORT": u.port or 5432,
         "CONN_MAX_AGE": 60,
+        "CONN_HEALTH_CHECKS": True,  # serverless databases close idle connections
+        "OPTIONS": options,
     }
 
 
