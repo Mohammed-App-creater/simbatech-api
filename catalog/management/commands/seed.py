@@ -141,8 +141,18 @@ def plans_for(rate: int):
 class Command(BaseCommand):
     help = "Seed the catalog, promo code, demo customer and admin account"
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--if-empty",
+            action="store_true",
+            help="Only seed a database with no products yet (safe to run on every deploy: never overwrites admin edits)",
+        )
+
     @transaction.atomic
     def handle(self, *args, **options):
+        if options["if_empty"] and Product.objects.exists():
+            self.stdout.write("Catalog already present; skipping seed.")
+            return
         for i, (name, department, kind, bg) in enumerate(CATEGORIES):
             Category.objects.update_or_create(slug=slugify(name.replace("&", "and")), defaults=dict(name=name, department=department, kind=kind, bg=bg, sort=i))
         for name in BRANDS:

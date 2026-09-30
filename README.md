@@ -96,3 +96,11 @@ All responses are JSON. Errors are `{"error": "<message>", "field": "<input path
 ## Production notes
 
 Set `DEBUG=0`, a real `SECRET_KEY`, `ALLOWED_HOSTS` and `FRONTEND_ORIGIN` (your site's URL; a comma-separated list is allowed, the first one receives sign-in and payment redirects). Signed-in requests from any other origin are rejected by the CSRF check. With `DEBUG=0` the container serves the API with gunicorn and cookies are marked `Secure`, so it must sit behind HTTPS.
+
+### Deploying on Render (with a Neon database)
+
+- **Build command:** `pip install -r requirements.txt && python manage.py collectstatic --noinput`
+- **Start command:** `python manage.py migrate --noinput && python manage.py seed --if-empty && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT`
+- **Environment:** copy the values from `.env.prod` (kept out of git). `DATABASE_URL` is Neon's pooled connection string. `API_PUBLIC_URL` is the *website's* URL, because the site proxies `/api/*` here and Google / payment callbacks must return through it.
+- `seed --if-empty` loads the catalog and admin account only on the first deploy, so later deploys never overwrite changes made in the admin.
+- On the website's host set `API_URL=https://<this service>.onrender.com` and redeploy the site.

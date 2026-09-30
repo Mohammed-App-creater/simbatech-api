@@ -7,7 +7,7 @@ until python manage.py migrate --noinput; do
   sleep 3
 done
 
-python manage.py seed
+python manage.py seed --if-empty
 python manage.py collectstatic --noinput >/dev/null
 
 if [ "${DEBUG:-1}" = "1" ]; then
