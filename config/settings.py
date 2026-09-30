@@ -14,19 +14,9 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-DEBUG = os.environ.get("DEBUG", "1") == "1"
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-only-insecure-key-change-me")
-if not DEBUG and SECRET_KEY.startswith("dev-only"):
-    raise RuntimeError("Set SECRET_KEY in the environment before running with DEBUG=0")
-
+DEBUG = os.environ.get("DEBUG", "1") == "1"
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1,api").split(",") if h.strip()]
-# Render provides the service's own hostname (e.g. simbatech-api.onrender.com)
-if os.environ.get("RENDER_EXTERNAL_HOSTNAME"):
-    ALLOWED_HOSTS.append(os.environ["RENDER_EXTERNAL_HOSTNAME"])
-
-# Behind a hosting proxy (Render, Vercel) HTTPS ends at the proxy; trust its header so Django knows.
-if not DEBUG:
-    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # The Next.js site(s) that talk to this API (browser requests are proxied through them). A comma-separated
 # list is accepted; the first entry is where sign-in and payment redirects send the customer.
