@@ -106,9 +106,20 @@ def verify_payment(tx_ref: str) -> Order | None:
 
 
 def webhook_signature_ok(request) -> bool:
+    """
+    Chapa sends two headers, both HMAC-SHA256 keyed with the webhook "Secret hash":
+    `x-chapa-signature` signs the request body, `Chapa-Signature` signs the secret itself.
+    Either one matching is enough. (The payment is still confirmed with Chapa's verify API
+    before an order is marked paid, so a forged webhook can't mark anything paid.)
+    """
     secret = settings.CHAPA_WEBHOOK_SECRET
     if not secret:
         return False
-    sent = request.headers.get("Chapa-Signature") or request.headers.get("x-chapa-signature") or ""
-    expected = hmac.new(secret.encode(), request.body, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(sent, expected)
+    key = secret.encode()
+    of_body = hmac.new(key, request.body, hashlib.sha256).hexdigest()
+    of_secret = hmac.new(key, key, hashlib.sha256).hexdigest()
+    x_sig = request.headers.get("x-chapa-signature", "")
+    chapa_sig = request.headers.get("Chapa-Signature", "")
+    return (bool(x_sig) and hmac.compare_digest(x_sig, of_body)) or (
+        bool(chapa_sig) and (hmac.compare_digest(chapa_sig, of_secret) or hmac.compare_digest(chapa_sig, of_body))
+    )
