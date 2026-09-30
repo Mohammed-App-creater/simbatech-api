@@ -63,7 +63,8 @@ class Product(models.Model):
         return self.name
 
     def recompute_rating(self):
-        agg = self.reviews.aggregate(avg=models.Avg("rating"), n=models.Count("id"))
+        # only reviews staff have approved count towards the rating customers see
+        agg = self.reviews.filter(status="approved").aggregate(avg=models.Avg("rating"), n=models.Count("id"))
         self.rating = round(agg["avg"] or 0, 1)
         self.review_count = agg["n"] or 0
         self.save(update_fields=["rating", "review_count"])
@@ -117,11 +118,19 @@ class AddOn(models.Model):
 
 
 class Review(models.Model):
+    """A customer's review. It shows on the site only after staff approve it (site admin → Reviews)."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Waiting for approval"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="reviews")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="reviews")
     rating = models.PositiveSmallIntegerField()  # 1–5
     title = models.CharField(max_length=80, blank=True)
     body = models.TextField()
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

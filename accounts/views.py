@@ -45,6 +45,7 @@ def user_dto(user) -> dict:
         "createdAt": user.created_at.isoformat(),
         "hasPassword": user.has_usable_password(),
         "google": bool(user.google_sub),
+        "isStaff": user.is_staff,  # staff get a link to the site's /admin
     }
 
 

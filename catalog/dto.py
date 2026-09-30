@@ -108,7 +108,9 @@ def review_dto(r: Review) -> dict:
 
 
 def reviews_payload(product: Product, user=None) -> dict:
-    reviews = list(product.reviews.select_related("user"))
+    """Approved reviews are public. `mine` is the visitor's own review whatever its status (with that status)."""
+    everything = list(product.reviews.select_related("user"))
+    reviews = [r for r in everything if r.status == Review.Status.APPROVED]
     counts = {s: 0 for s in range(1, 6)}
     for r in reviews:
         counts[r.rating] += 1
@@ -118,7 +120,7 @@ def reviews_payload(product: Product, user=None) -> dict:
         "count": n,
         "distribution": [{"stars": s, "count": counts[s], "percent": round(counts[s] * 100 / n) if n else 0} for s in (5, 4, 3, 2, 1)],
         "items": [review_dto(r) for r in reviews],
-        "mine": next((review_dto(r) for r in reviews if user and r.user_id == user.pk), None),
+        "mine": next(({**review_dto(r), "status": r.status} for r in everything if user and r.user_id == user.pk), None),
     }
 
 

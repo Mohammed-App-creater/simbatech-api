@@ -19,6 +19,10 @@ PostgreSQL. The website is the separate repo `../simbatech-web` (Next.js), see i
   `catalog/dto.py` shapes products the way the site's screens expect — keep those keys stable.
 - `cart/` guest carts live in the session and merge into the account on sign-in.
 - `orders/` checkout (`services.py`), payments (`payments.py`), tracking, rental extensions.
+- `backoffice/` the staff API behind the site's `/admin` pages: `/api/admin/*` (overview, orders, review approval,
+  products, messages, customers, promo codes, store details). Every view extends `StaffView` (`is_staff` only:
+  401 signed out, 403 for customers). No models of its own. Django's `/admin/` still covers the rest
+  (categories, brands, bundles, content pages, staff accounts).
 
 ## Conventions
 
@@ -26,6 +30,9 @@ PostgreSQL. The website is the separate repo `../simbatech-web` (Next.js), see i
 - Every error leaves as `{"error": "<customer-facing message>", "field": "<input path>"?}` with a fitting status
   (raise `core.errors.ApiError`). The site shows `field` errors inline.
 - Phones are Ethiopian mobiles, normalised by `accounts.identity.normalize_phone` to `0911234567` (7 or 9 after 0).
+- **Reviews need approval**: `Review.status` is `pending` until staff approve it (a customer's edit puts it back
+  to pending). Only approved reviews are in `reviews_payload().items` and in the product's rating; `mine` carries
+  the author's own review with its status. Call `product.recompute_rating()` after any status change.
 - Rules: free delivery at ETB 100,000 purchases (else 500), same-day +450, rental delivery free,
   deposit refundable and not in `total`.
 - `python manage.py seed` refreshes catalog + demo data; **`seed --if-empty` in deploys** so admin edits are never

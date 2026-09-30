@@ -224,7 +224,7 @@ class Command(BaseCommand):
         for name, reviews in REVIEWS.items():
             product = Product.objects.get(slug=product_slug(name))
             for k, (rating, title, body) in enumerate(reviews):
-                Review.objects.update_or_create(product=product, user=reviewers[(k + len(name)) % len(reviewers)], defaults=dict(rating=rating, title=title, body=body))
+                Review.objects.update_or_create(product=product, user=reviewers[(k + len(name)) % len(reviewers)], defaults=dict(rating=rating, title=title, body=body, status=Review.Status.APPROVED))
             product.recompute_rating()
 
         # ── Staff account for /admin ──

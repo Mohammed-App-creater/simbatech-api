@@ -1,6 +1,7 @@
 from django.urls import path
 
 from accounts import views as accounts
+from backoffice import views as backoffice
 from cart import views as cart
 from catalog import views as catalog
 from orders import views as orders
@@ -54,4 +55,20 @@ urlpatterns = [
     path("addresses/<int:pk>", accounts.AddressDetailView.as_view()),
     path("payment-methods", accounts.PaymentMethodListView.as_view()),
     path("payment-methods/<int:pk>", accounts.PaymentMethodDetailView.as_view()),
+    # staff only: the site's /admin pages
+    path("admin/me", backoffice.MeView.as_view()),
+    path("admin/overview", backoffice.OverviewView.as_view()),
+    path("admin/orders", backoffice.OrderListView.as_view()),
+    path("admin/orders/<str:pk>", backoffice.OrderDetailView.as_view()),
+    path("admin/rentals/<int:pk>", backoffice.RentalView.as_view()),
+    path("admin/reviews", backoffice.ReviewListView.as_view()),
+    path("admin/reviews/<int:pk>", backoffice.ReviewDetailView.as_view()),
+    path("admin/products", backoffice.ProductListView.as_view()),
+    path("admin/products/<slug:slug>", backoffice.ProductDetailView.as_view()),
+    path("admin/messages", backoffice.MessageListView.as_view()),
+    path("admin/messages/<int:pk>", backoffice.MessageDetailView.as_view()),
+    path("admin/customers", backoffice.CustomerListView.as_view()),
+    path("admin/promos", backoffice.PromoListView.as_view()),
+    path("admin/promos/<str:code>", backoffice.PromoDetailView.as_view()),
+    path("admin/settings", backoffice.SettingsView.as_view()),
 ]

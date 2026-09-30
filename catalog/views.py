@@ -72,13 +72,16 @@ class ProductReviewsView(APIView):
         return Response(reviews_payload(self._product(slug), user))
 
     def post(self, request, slug):
-        """Write (or update) your review. Signed-in customers only, one review per product."""
+        """
+        Write (or update) your review. Signed-in customers only, one review per product.
+        A new or edited review waits for staff approval before it shows on the site.
+        """
         if not request.user.is_authenticated:
             raise ApiError("Please sign in to write a review", 401)
         product = self._product(slug)
         s = ReviewSerializer(data=request.data)
         s.is_valid(raise_exception=True)
-        Review.objects.update_or_create(product=product, user=request.user, defaults=s.validated_data)
+        Review.objects.update_or_create(product=product, user=request.user, defaults={**s.validated_data, "status": Review.Status.PENDING})
         product.recompute_rating()
         return Response(reviews_payload(product, request.user), status=status.HTTP_201_CREATED)
 

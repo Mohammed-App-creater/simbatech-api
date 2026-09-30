@@ -38,9 +38,33 @@ class ProductAdmin(admin.ModelAdmin):
 
 @admin.register(Review)
 class ReviewAdmin(admin.ModelAdmin):
-    list_display = ("product", "user", "rating", "title", "created_at")
-    list_filter = ("rating",)
+    list_display = ("product", "user", "rating", "title", "status", "created_at")
+    list_filter = ("status", "rating")
     search_fields = ("product__name", "user__name", "title", "body")
+    actions = ["approve", "reject"]
+
+    def _set_status(self, queryset, status):
+        products = {r.product for r in queryset}
+        queryset.update(status=status)
+        for p in products:
+            p.recompute_rating()
+
+    @admin.action(description="Approve selected reviews")
+    def approve(self, request, queryset):
+        self._set_status(queryset, Review.Status.APPROVED)
+
+    @admin.action(description="Reject selected reviews")
+    def reject(self, request, queryset):
+        self._set_status(queryset, Review.Status.REJECTED)
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        obj.product.recompute_rating()
+
+    def delete_model(self, request, obj):
+        product = obj.product
+        super().delete_model(request, obj)
+        product.recompute_rating()
 
     def delete_queryset(self, request, queryset):
         products = {r.product for r in queryset}
