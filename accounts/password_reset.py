@@ -2,6 +2,8 @@
 Forgot password: email accounts get a reset link by email; phone accounts get a code by SMS.
 """
 
+import logging
+
 from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
@@ -12,6 +14,8 @@ from core.errors import ApiError
 
 from .models import OtpCode, User
 from .otp import send_code, verify_code
+
+log = logging.getLogger(__name__)
 
 
 def reset_link(user: User) -> str:
@@ -31,12 +35,16 @@ def start_reset(ident: dict) -> dict:
     info = {"via": "email", "sent": True}
     if user:
         link = reset_link(user)
-        send_mail(
-            "Reset your Simbatech password",
-            f"Hi {user.name},\n\nUse this link to choose a new password (it works for 3 days):\n{link}\n\nIf you didn't ask for this, you can ignore this email.",
-            None,
-            [user.email],
-        )
+        try:
+            send_mail(
+                "Reset your Simbatech password",
+                f"Hi {user.name},\n\nUse this link to choose a new password (it works for 3 days):\n{link}\n\nIf you didn't ask for this, you can ignore this email.",
+                None,
+                [user.email],
+            )
+        except Exception:  # mail server down, blocked port, bad credentials...
+            log.exception("Password reset email to %s failed", user.email)
+            raise ApiError("We couldn't send the email right now. Please try again in a few minutes, or reset with your phone number.", 503)
         if settings.DEBUG and settings.EMAIL_BACKEND.endswith("console.EmailBackend"):
             info["devLink"] = link  # no mail server in development: hand the link straight back
     return info
